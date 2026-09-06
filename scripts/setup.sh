@@ -4,10 +4,10 @@
 #   git clone <this repo> microduck-workspace && cd microduck-workspace && ./scripts/setup.sh
 #
 # Clones the two upstream Pollen repos NEXT TO this checkout at the shas CI
-# pins (the contract, golden-bit and symmetry tests are measured against
-# those exact models and policies), syncs the Python env with uv, installs
-# the viewer's npm packages, and runs the quick contract tests. Re-running it
-# is safe: it only moves the upstream checkouts to the pinned shas.
+# pins, downloads the public policy artifacts, syncs the Python env with uv,
+# installs the viewer's npm packages, and runs the quick contract tests.
+# Re-running it is safe: it only moves the upstream checkouts to the pinned
+# shas and refreshes the policy files.
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 ws="$(dirname "$here")"
@@ -36,6 +36,22 @@ clone_at microduck microduck "$MD_SHA"
 
 echo "→ uv sync (microduck_local)"
 (cd "$here/microduck_local" && uv sync -q)
+
+# The canonical ONNX artifacts live in the public
+# pollen-robotics/microduck-policies Hub repository. Fetch them explicitly so
+# setup does not depend on a stale vendored copy or Git LFS state.
+policy_dir="$ws/microduck/policies"
+mkdir -p "$policy_dir"
+echo "→ download shipped policies"
+(cd "$here/microduck_local" && uv run hf download pollen-robotics/microduck-policies \
+  alpha_ground_pick.onnx alpha_sitstand.onnx alpha_stand.onnx alpha_walking.onnx \
+  ball_kick_left.onnx ball_kick_right.onnx roller.onnx roller_crouch.onnx roulade.onnx \
+  --local-dir "$policy_dir" --quiet)
+for policy in alpha_walking alpha_stand alpha_sitstand alpha_ground_pick; do
+  [ -f "$policy_dir/$policy.onnx" ] || { echo "missing downloaded policy: $policy_dir/$policy.onnx"; exit 1; }
+done
+echo "✓ shipped policies found in $policy_dir"
+
 echo "→ npm install (duck-viewer)"
 (cd "$here/duck-viewer" && npm install --silent --no-audit --no-fund)
 

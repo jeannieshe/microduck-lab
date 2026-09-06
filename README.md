@@ -66,11 +66,18 @@ Node 20+, ~3 GB of disk for the checkouts and models.
 
 ```bash
 git clone https://github.com/jonathanhawkins/microduck-lab && cd microduck-lab
-git clone https://github.com/pollen-robotics/microduck        # shipped policies, docs
+git clone https://github.com/pollen-robotics/microduck        # robot software, docs
 git clone https://github.com/pollen-robotics/microduck_rl     # MJCF models, official stack
+
+# scripts/setup.sh downloads the shipped alpha_* policies from the public Hub
+# repository: https://huggingface.co/pollen-robotics/microduck-policies
 
 cd microduck_local
 uv sync
+uv run hf download pollen-robotics/microduck-policies \
+  alpha_ground_pick.onnx alpha_sitstand.onnx alpha_stand.onnx alpha_walking.onnx \
+  ball_kick_left.onnx ball_kick_right.onnx roller.onnx roller_crouch.onnx roulade.onnx \
+  --local-dir ../microduck/policies --quiet
 uv run --with pytest pytest tests/        # contract tests, should be all green
 
 # train your first walking policy (a few minutes on an M-series Mac)
