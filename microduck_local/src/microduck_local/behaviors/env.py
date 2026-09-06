@@ -133,6 +133,9 @@ class BehaviorEnv(MicroduckWalkEnv):
 
     def reset(self, **kwargs):
         self.episode_id += 1
+        # Direction is sampled once per episode, not once per command-resample
+        # interval. The base walk env calls _sample_commands every 5 seconds.
+        self._spin_dir = None
         out = super().reset(**kwargs)
         self.data.qfrc_applied[:] = 0.0   # never carry an assist across episodes
         self.spotter_active = False
@@ -337,12 +340,16 @@ class BehaviorEnv(MicroduckWalkEnv):
         # ceiling and standing fraction follow the GPU curricula.
         r = self._rng
         self.twist_cmd[:] = 0.0
-        # Spin: per-episode DIRECTION command in the observable wz slot (the
-        # signed spin_fast pay needs the policy to know which way; it also
-        # makes the trick steerable). Reasserted in _get_obs so the farm's
-        # trick-duck command zeroing can't blank it.
-        if self.behavior.id == "spin":
+        # Turning tricks: per-episode DIRECTION command in the observable wz
+        # slot (the signed spin_fast pay needs the policy to know which way;
+        # it also makes the trick steerable). Reasserted in _get_obs so the
+        # farm's trick-duck command zeroing can't blank it. `turn_in_place`
+        # must use this too: without a cue, its policy can discover opposing
+        # yaw actions in the same state and chatter between them.
+        if (self.behavior.id in ("spin", "turn_in_place")
+                and getattr(self, "_spin_dir", None) is None):
             self._spin_dir = float(r.choice((-1.0, 1.0)))
+        if self.behavior.id in ("spin", "turn_in_place"):
             self.twist_cmd[2] = self._spin_dir
         if self.behavior.forward_cmd:
             pinned = _spawn_knob(self, "MICRODUCK_RUN_CMD")
@@ -387,7 +394,7 @@ class BehaviorEnv(MicroduckWalkEnv):
         if self.clip is not None:
             s, c = self.clip.phase(self.step_count)
             self.body_cmd[4], self.body_cmd[5] = s, c
-        if self.behavior.id == "spin":
+        if self.behavior.id in ("spin", "turn_in_place"):
             self.twist_cmd[2] = getattr(self, "_spin_dir", 1.0)
         if self.behavior.obs_fn is not None:
             self.behavior.obs_fn(self)
