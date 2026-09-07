@@ -1024,7 +1024,7 @@ def test_only_the_one_sided_recipes_opt_out_of_the_mirror_prior():
     # find_ball: from a symmetric start (ball unseen, memory empty) a
     # mirror-consistent policy must output a zero yaw sweep — it cannot pick
     # a side to look first, so the exported mean would sit and stare.
-    assert asymmetric == {"one_leg", "imitate", "find_ball", "turn_in_place"}
+    assert asymmetric == {"one_leg", "imitate", "find_ball"}
     # spin stays mirror-safe: the direction COMMAND rides the wz slot, and
     # the mirror map negates that slot and the gyro together, so a mirrored
     # episode is just the opposite commanded direction. The rest are sagittal
@@ -1061,27 +1061,6 @@ def test_one_leg_is_asymmetric_in_its_reward_not_just_its_flag():
     # A symmetric recipe is indifferent to the same swap: nothing to fight.
     assert abs(_side_scores("stand", "left", "right")
                - _side_scores("stand", "right", "left")) < 1e-6
-
-
-def test_turn_in_place_exposes_one_signed_direction_command():
-    """A turn must not ask a memoryless policy to choose both yaw signs."""
-    from microduck_local.behaviors import BehaviorEnv
-
-    env = BehaviorEnv("turn_in_place", obs_noise=False, domain_rand=False,
-                      action_delay=False, random_yaw=False, seed=0)
-    try:
-        signs = set()
-        for seed in range(12):
-            obs, _ = env.reset(seed=seed)
-            direction = float(env.twist_cmd[2])
-            signs.add(direction)
-            assert direction in (-1.0, 1.0)
-            assert obs[50] == direction
-            env._sample_commands()  # command resampling must not flip it
-            assert env.twist_cmd[2] == direction
-        assert signs == {-1.0, 1.0}
-    finally:
-        env.close()
 
 
 def test_backflip_brake_charges_only_completed_overroll():
